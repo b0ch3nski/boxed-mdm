@@ -1,0 +1,4 @@
+.vscode/
+/packer/output/
+*.bak
+*.deb

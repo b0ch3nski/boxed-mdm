@@ -1,0 +1,92 @@
+#cloud-config
+autoinstall:
+  version: 1
+  locale: en_US.UTF-8
+  keyboard:
+    layout: pl
+  timezone: "Europe/Warsaw"
+  source:
+    id: ubuntu-server-minimal
+  updates: all
+  storage:
+    layout:
+      name: lvm
+      password: ubuntu
+      sizing-policy: all
+  late-commands:
+    - |
+      set -ex
+      LUKS_UUID="$(blkid -t TYPE=crypto_LUKS -s UUID -o value)"
+
+      curtin in-target --target=/target -- bash -c "
+        mkdir -p /etc/cryptsetup-keys.d /etc/cryptsetup-initramfs
+        dd if=/dev/urandom of=/etc/cryptsetup-keys.d/${LUKS_UUID}.key bs=512 count=8
+        chmod 600 /etc/cryptsetup-keys.d/${LUKS_UUID}.key
+      "
+
+      echo -n "ubuntu" | cryptsetup luksAddKey "/dev/disk/by-uuid/${LUKS_UUID}" "/target/etc/cryptsetup-keys.d/${LUKS_UUID}.key" -
+
+      curtin in-target --target=/target -- bash -c "
+        echo 'dm_crypt-0 UUID=${LUKS_UUID} /etc/cryptsetup-keys.d/${LUKS_UUID}.key luks,discard' > /etc/crypttab
+        echo 'KEYFILE_PATTERN=/etc/cryptsetup-keys.d/*.key' >> /etc/cryptsetup-initramfs/conf-hook
+        update-initramfs -u -k all
+
+        echo 'GRUB_CMDLINE_LINUX_DEFAULT=\"\$GRUB_CMDLINE_LINUX_DEFAULT mitigations=off apparmor=0 net.ifnames=0 ipv6.disable=1\"' > /etc/default/grub.d/99-custom.cfg
+        update-grub
+      "
+  ssh:
+    install-server: true
+  user-data:
+    hostname: ubuntu
+    write_files:
+      - path: /etc/sysctl.d/99-custom.conf
+        content: |
+          vm.max_map_count = 1048576
+          fs.file-max = 1048576
+          net.ipv4.ip_forward = 1
+          net.ipv4.conf.all.src_valid_mark = 1
+      - path: /etc/ssh/sshd_config.d/99-custom.conf
+        content: |
+          PermitRootLogin no
+          PasswordAuthentication yes
+          X11Forwarding yes
+          X11UseLocalhost no
+          PermitTunnel yes
+      - path: /etc/environment
+        content: |
+          DEBIAN_FRONTEND=noninteractive
+          NO_AT_BRIDGE=1
+        append: true
+      - path: /usr/lib/systemd/user/dbus-session-socat@.service
+        content: |
+          [Unit]
+          After=dbus.service
+
+          [Service]
+          ExecStart=/bin/bash -c 'socat TCP-LISTEN:%i,reuseaddr,fork UNIX-CONNECT:${DBUS_SESSION_BUS_ADDRESS#unix:path=}'
+          Restart=on-failure
+
+          [Install]
+          WantedBy=default.target
+      - path: /usr/lib/systemd/user/microsocks@.service
+        content: |
+          [Unit]
+          After=network.target
+
+          [Service]
+          ExecStart=/usr/bin/microsocks -i 0.0.0.0 -p %i
+          Restart=on-failure
+
+          [Install]
+          WantedBy=default.target
+    users:
+      - name: ubuntu
+        no_user_group: true
+        primary_group: users
+        groups:
+          - adm
+        plain_text_passwd: ubuntu
+        lock_passwd: false
+        shell: /bin/bash
+        sudo: ALL=(ALL) NOPASSWD:ALL
+        uid: 1337
