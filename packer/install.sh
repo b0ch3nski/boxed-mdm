@@ -27,6 +27,7 @@ dbus-send --session --print-reply --dest=com.bochen.opener --reply-timeout=1 / c
 EOF
 chmod +x /usr/local/bin/xdg-open
 
+systemctl disable apt-daily.timer snapd.socket snapd.service
 apt-get autoremove -y --purge
 rm -rfv \
     /var/cache/apt/* \
