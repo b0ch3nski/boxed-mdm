@@ -38,6 +38,9 @@ run: output/runtime.qcow2 ## Runs the built VM image with QEMU
 ssh: ## Connects to the VM via SSH
 	@sshpass -p "ubuntu" ssh -Y -p $(PORT_SSH) ubuntu@localhost "$(cmd)"
 
+scp: ## Sends a file to the VM via SCP
+	@sshpass -p "ubuntu" scp -pr -P $(PORT_SSH) "$(src)" ubuntu@localhost:/tmp/
+
 stop: ## Shuts down VM gracefully
 	@$(MAKE) cmd="sudo -S shutdown -P now" ssh
 

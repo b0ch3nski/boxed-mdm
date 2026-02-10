@@ -13,6 +13,9 @@ apt-get install -y --no-install-recommends --no-install-suggests \
     sudo \
     gpg
 
+rm --force /opt/zscaler/bin/zsupdater
+ln --symbolic /bin/true /opt/zscaler/bin/zsupdater
+
 curl --location --fail-with-body --no-progress-meter "https://packages.microsoft.com/keys/microsoft.asc" | gpg --yes --dearmor --output /usr/share/keyrings/microsoft.gpg
 echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/ubuntu/24.04/prod noble main" > /etc/apt/sources.list.d/microsoft.list
 
